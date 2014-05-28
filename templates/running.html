@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set active_page = "running" %}
+
+{% block title %}List of running workflows{% endblock %}
+{% block page %}
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Started</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in running %}
+                <tr>
+                    <td>{{ link_to(job['_id'], 'running_workflow', id=job['_id']) }}</td>
+                    <td>{{ job['startTime'] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

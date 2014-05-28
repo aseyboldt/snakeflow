@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block title %}Workflow {{ meta['name'] }} — Jobid {{ job['_id'] }}{% endblock %}
+{% block page %}
+    <div class="page-header">
+        <h1>Running Workflow {{ meta['name'] }} {{ job['_id'] }} </h1>
+    </div>
+    <div id="job-view"></div>
+    <ul>
+        {% for update in job['updates'] %}
+            <li> {{ update }} </li>
+        {% endfor %}
+    </ul>
+{% endblock %}

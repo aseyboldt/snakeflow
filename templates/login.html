@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "bootstrap/wtf.html" import quick_form %}
+{% block page %}
+    {{quick_form(form)}}
+<!--
+    <form action="/login" role="form" method='POST'>
+        <div class="form-group">
+            <label for="loginName">Account name</label>
+            <input class="form-control" type="string" id="loginName" placeholder="Enter name">
+        </div>
+        <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input class="form-control" type="password" id="loginPassword" placeholder="Password">
+        </div>
+        <button type="submit" class="btn btn-default">Submit</button>
+    </form>
+    -->
+{% endblock %}

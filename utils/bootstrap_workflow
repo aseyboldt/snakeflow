@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+
+import shutil
+import os
+import subprocess
+import sys
+import argparse
+import logging
+import pathlib
+import zipfile
+from io import BytesIO
+import tempfile
+import signal
+import time
+
+
+logging.basicConfig(
+    filename="bootstrap.log",
+    level=logging.DEBUG
+)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('workflow', help="path to workflow")
+    parser.add_argument('--db', help='zeromq path to status server',
+                        required=True)
+    parser.add_argument('--workflow-dir',
+                        help="directory where workflows are stored")
+    parser.add_argument('--workdir', help="base dir for workflow execution",
+                        default='/tmp')
+    parser.add_argument('--commit', default='HEAD',
+                        help="commit id for workflow")
+    parser.add_argument('--logfile')
+    return parser.parse_args()
+
+
+def error(message):
+    logging.error(message)
+    sys.exit(1)
+
+
+def git_copy(repo, target, commit):
+    origdir = os.getcwd()
+    try:
+        os.chdir(repo)
+        changed = subprocess.check_output(
+            'git status --porcelain -u no', shell=True
+        )
+        if changed:
+            logging.warn("Uncommited changes in workflow, using last commit")
+        archive = subprocess.check_output(
+            ['git', 'archive', '--format=zip', str(commit)]
+        )
+        file = zipfile.ZipFile(BytesIO(archive))
+        print(file.namelist())
+        commit = file.comment
+        file.extractall(path=target)
+        (pathlib.Path(target) / "start_job").chmod(0o700)
+        return commit.decode()
+    except Exception as e:
+        error("Could not access git repo: " + str(e))
+    finally:
+        os.chdir(origdir)
+
+
+def main():
+    logging.info("Got request for new job")
+    args = parse_args()
+    logging.info("Requested workflow name is " + args.workflow)
+    logging.info("Requested workflow dir is " + args.workflow_dir)
+    logging.info("zeromq path to status server is " + args.db)
+
+    wf_base = pathlib.Path(args.workflow_dir).resolve()
+    workflow = args.workflow
+    workdir = pathlib.Path(args.workdir).resolve()
+    if not wf_base.exists():
+        error("workflow dir does not exist")
+
+    if not (wf_base / workflow).exists():
+        error("could not find workflow")
+
+    if not workdir.exists():
+        error("workdir does not exist")
+
+    tempdir = tempfile.mkdtemp(prefix=workflow, dir=str(workdir))
+    logging.info("will work in " + tempdir)
+
+    logging.info(
+        "copying worklfow at commit {} to {}".format(args.commit, tempdir)
+    )
+
+    commit = git_copy(str(wf_base / workflow), tempdir, args.commit)
+    logging.info("commit is " + commit)
+
+    received_reply = False
+    def handler(signal, frame):
+        nonlocal received_reply
+        received_reply = True
+        raise Exception()
+    signal.signal(signal.SIGUSR1, handler)
+
+    popen = subprocess.Popen(
+        [os.path.join(tempdir, 'start_job'), "--db=" + args.db,
+         "--report-to=" + str(os.getpid()),
+         "--version=" + str(commit)],
+        stdout=subprocess.PIPE, start_new_session=True
+    )
+
+    try:
+        time.sleep(5)
+    except:
+        pass
+    if not received_reply:
+        logging.critical(
+            "No response from child process. Could not start workflow"
+        )
+        popen.kill()
+        sys.exit(1)
+
+    logging.info("Got response from child process")
+    line = popen.stdout.readline()  # TODO should be non-blocking
+
+    # show jobid and exit
+    jobid = line.decode().strip()
+    print(jobid)
+    sys.stdout.flush()
+    popen.send_signal(signal.SIGUSR1)
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        logging.exception("unknown error in bootstrap_workflow")
+        sys.exit(1)
+

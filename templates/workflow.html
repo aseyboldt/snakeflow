@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block title %}Workflow {{ meta['name'] }}{% endblock %}
+{% block page %}
+    <div class="page-header">
+        <h1>Workflow {{ meta['name'] }}</h1>
+    </div>
+    <div id="workflow-submit"></div>
+    <div id="res"></div>
+{% endblock %}
+
+{% block scripts %}
+    {{super()}}
+    <script type="text/javascript" src="/static/contrib/underscore.js"></script>
+    <script type="text/javascript" src="/static/contrib/jsonform.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var meta = {{ meta|tojson|safe }};
+            {{ workflow_js|safe }}
+            view.make_submit_view(
+                $('#workflow-submit'),
+                meta,
+                function(errors, values) {
+                    if (errors) {
+                        $('#res').html('error');
+                    }
+                    else {
+                        $.ajax({  // TODO add CSRF token
+                            url: '/submit/{{meta["name"]|urlencode|safe}}/{{meta["version"]|urlencode|safe}}',
+                            type: 'POST',
+                            data: JSON.stringify(values),
+                            contentType: 'application/json',
+                            success: function(got) {
+                                $('#res').html('Joh has been submitted. Id is ' + got['jobid']);
+                                window.location = "/running/" + got['jobid'];
+                            }
+                        });
+                     }
+                }
+            );
+        });
+    </script>
+{% endblock %}
