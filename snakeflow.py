@@ -122,13 +122,12 @@ def start_workflow(wfname, version):
     if data is None:
         abort(415)
     try:
-        wf_id = execute_workflow(user=current_user, data=request.data,
+        jobid = execute_workflow(user=current_user, data=request.data,
                                  meta=workflow)
-        print(wf_id)
     except Exception as e:
         raise e
         return jsonify({"error": str(e)}), 501
-    return jsonify({"jobid": wf_id})  # TODO check CSRF!!
+    return jsonify({"jobid": jobid})  # TODO check CSRF!!
 
 
 def execute_workflow(user, data, meta):
@@ -137,14 +136,18 @@ def execute_workflow(user, data, meta):
     client.connect(hostname=app.config['CLUSTER_FRONTEND'],
                    username=user.id,
                    timeout=1)
-    _, stdout, _ = client.exec_command('cdt', timeout=1)
-    stdout.read()
-    _, stdout, stderr = client.exec_command('{} --db={} {}'.format(
+
+    command = '{} --db={} --workflow-dir={} --workdir={} {}'.format(
         app.config['WORKFLOW_BOOTSTRAP_PATH'],
         app.config['DB_ZEROMQ'],
-        meta['name']), timeout=5
+        app.config['WORKFLOW_DIR'],
+        app.config['WORKDIR'],
+        meta['name']
     )
+    print(command)
+    _, stdout, stderr = client.exec_command(command, timeout=5)
     jobid = stdout.readline().strip()
+    print(jobid)
     print(stderr.read())
     return jobid
 
@@ -154,8 +157,12 @@ app.config['BOOTSTRAP_CDN_FORCE_SSL'] = True
 app.config['CLUSTER_FRONTEND'] = 'localhost'
 app.config['DB_ZEROMQ'] = 'tcp://127.0.0.1:6001'
 app.config['WORKFLOW_BOOTSTRAP_PATH'] = (
-    '/home/adr/git/QBiC/flask_test/bootstrap_workflow'
+    '/home/adr/git/QBiC/flask_test/snakeflow/utils/bootstrap_workflow'
 )
+app.config['WORKFLOW_DIR'] = (
+    '/home/adr/git/QBiC/flask_test/workflows'
+)
+app.config['WORKDIR'] = '/home/adr/git/QBiC/flask_test/workdir'
 
 if __name__ == '__main__':
     app.run(debug=True)

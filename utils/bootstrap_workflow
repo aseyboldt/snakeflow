@@ -53,7 +53,6 @@ def git_copy(repo, target, commit):
             ['git', 'archive', '--format=zip', str(commit)]
         )
         file = zipfile.ZipFile(BytesIO(archive))
-        print(file.namelist())
         commit = file.comment
         file.extractall(path=target)
         (pathlib.Path(target) / "start_job").chmod(0o700)
